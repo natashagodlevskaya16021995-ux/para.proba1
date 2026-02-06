@@ -9,7 +9,7 @@
         #lives { display: flex; gap: 8px; margin-bottom: 10px; }
         .life { width: 30px; height: 30px; background-size: contain; background-repeat: no-repeat; transition: 0.3s; }
         #p-wrap { width: 200px; height: 10px; background: rgba(0,0,0,0.2); border-radius: 10px; overflow: hidden; border: 1px solid rgba(255,255,255,0.2); }
-        #p-bar { width: 0%; height: 100%; background: #03dac6; transition: 0.3s; }
+        #p-bar { width: 0%; height: 100%; transition: 0.3s; }
         .card { 
             position: absolute; width: 130px; height: 130px; 
             background-size: contain; background-repeat: no-repeat; background-position: center;
@@ -25,40 +25,31 @@
     <div id="ui"><div id="lives"></div><div id="p-wrap"><div id="p-bar"></div></div></div>
     <div id="game"></div>
     <img id="fb">
-    <div id="win"><h1>ПОБЕДА!</h1><button onclick="location.reload()" style="padding:10px 20px; cursor:pointer; border-radius:8px; border:none; background:#03dac6; font-weight:bold;">ИГРАТЬ СНОВА</button></div>
+    <div id="win"><h1>ПОБЕДА!</h1><button onclick="location.reload()" style="padding:10px 20px; cursor:pointer; border-radius:8px; border:none; background:#eee; font-weight:bold;">ЗАНОВО</button></div>
 
 <script>
     const params = new URLSearchParams(window.location.search);
-    
-    // Настройки из URL
+    const pColor = params.get('pcolor') || '#03dac6';
+    document.getElementById('p-bar').style.backgroundColor = pColor;
+
     const fontName = params.get('font') || 'Arial';
     const effect = params.get('effect') || '';
-    const fontSize = params.get('fsize') || '20px';
-    const opac = params.get('opac') || '0.5';
-    const cImg = params.get('cimg') || '';
-    const lImg = params.get('lifeimg') || '';
-    const wImg = params.get('winimg') || '';
-    const loImg = params.get('loseimg') || '';
-    const speed = parseFloat(params.get('speed')) || 2;
-    const dataRaw = params.get('data') || '{}';
-
-    // Подключаем шрифт
     if (fontName !== 'Arial') {
-        document.getElementById('font-link').href = `https://fonts.googleapis.com/css2?family=${fontName.replace(/ /g, '+')}${effect ? '&effect='+effect : ''}`;
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = `https://fonts.googleapis.com/css2?family=${fontName.replace(/ /g, '+')}${effect ? '&effect='+effect : ''}`;
+        document.head.appendChild(link);
         document.body.style.fontFamily = `'${fontName}', sans-serif`;
     }
 
-    const pairsObj = JSON.parse(dataRaw);
+    const cImg = params.get('cimg'), lImg = params.get('lifeimg'), wImg = params.get('winimg'), loImg = params.get('loseimg');
+    const pairsObj = JSON.parse(params.get('data') || '{}');
     const pairs = Object.entries(pairsObj).map(([a, b], i) => ({a, b, id: i}));
     let deck = [];
     pairs.forEach(p => { deck.push({t: p.a, id: p.id}); deck.push({t: p.b, id: p.id}); });
     deck.sort(() => 0.5 - Math.random());
 
-    let lives = 3;
-    let found = 0;
-    let selected = [];
-    let cards = [];
-
+    let lives = 3, found = 0, selected = [], cards = [];
     const lDiv = document.getElementById('lives');
     for(let i=0; i<3; i++) lDiv.innerHTML += `<div class="life" style="background-image:url('${lImg}')"></div>`;
 
@@ -66,10 +57,9 @@
         const el = document.createElement('div');
         el.className = `card ${effect}`;
         el.textContent = data.t;
-        el.style.fontSize = fontSize;
-        el.style.backgroundColor = `rgba(255,255,255,${opac})`;
+        el.style.fontSize = params.get('fsize') || '20px';
+        el.style.backgroundColor = `rgba(255,255,255,${params.get('opac') || '0.4'})`;
         el.style.backgroundImage = `url('${cImg}')`;
-        
         el.onclick = () => {
             if(selected.length < 2 && !el.dataset.done) {
                 el.style.boxShadow = "0 0 25px white";
@@ -78,14 +68,12 @@
                     const [s1, s2] = selected;
                     const fb = document.getElementById('fb');
                     if(s1.id === s2.id) {
-                        fb.src = wImg;
-                        found++;
+                        fb.src = wImg; found++;
                         document.getElementById('p-bar').style.width = (found/pairs.length)*100 + '%';
                         selected.forEach(s => { s.el.style.display = 'none'; s.el.dataset.done = '1'; });
                         if(found == pairs.length) document.getElementById('win').style.display = 'flex';
                     } else {
-                        fb.src = loImg;
-                        lives--;
+                        fb.src = loImg; lives--;
                         const icons = document.querySelectorAll('.life');
                         if(icons[lives]) icons[lives].style.opacity = '0.1';
                         if(lives <= 0) setTimeout(() => location.reload(), 1000);
@@ -97,7 +85,7 @@
                 }
             }
         };
-        const cObj = { el, x: Math.random()*(window.innerWidth-130), y: Math.random()*(window.innerHeight-130), vx: (Math.random()-0.5)*speed, vy: (Math.random()-0.5)*speed };
+        const cObj = { el, x: Math.random()*(window.innerWidth-130), y: Math.random()*(window.innerHeight-130), vx: (Math.random()-0.5)*params.get('speed'), vy: (Math.random()-0.5)*params.get('speed') };
         document.getElementById('game').appendChild(el);
         cards.push(cObj);
     });
@@ -108,8 +96,7 @@
             c.x += c.vx; c.y += c.vy;
             if(c.x < 0 || c.x > window.innerWidth - 130) c.vx *= -1;
             if(c.y < 0 || c.y > window.innerHeight - 130) c.vy *= -1;
-            c.el.style.left = c.x + 'px';
-            c.el.style.top = c.y + 'px';
+            c.el.style.left = c.x + 'px'; c.el.style.top = c.y + 'px';
         });
         requestAnimationFrame(loop);
     }
