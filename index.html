@@ -8,14 +8,14 @@
         #ui { position: fixed; top: 10px; width: 100%; display: flex; flex-direction: column; align-items: center; z-index: 100; pointer-events: none; }
         #lives { display: flex; gap: 8px; margin-bottom: 10px; }
         .life { width: 30px; height: 30px; background-size: contain; background-repeat: no-repeat; transition: 0.3s; }
-        #p-wrap { width: 200px; height: 10px; background: rgba(0,0,0,0.2); border-radius: 10px; overflow: hidden; border: 1px solid rgba(255,255,255,0.2); }
+        #p-wrap { width: 200px; height: 10px; background: rgba(0,0,0,0.1); border-radius: 10px; overflow: hidden; border: 1px solid rgba(255,255,255,0.1); }
         #p-bar { width: 0%; height: 100%; transition: 0.3s; }
         .card { 
             position: absolute; width: 130px; height: 130px; 
             background-size: contain; background-repeat: no-repeat; background-position: center;
             display: flex; align-items: center; justify-content: center; text-align: center; 
-            cursor: pointer; border-radius: 15px; color: white; padding: 10px; box-sizing: border-box;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3); user-select: none;
+            cursor: pointer; color: white; padding: 10px; box-sizing: border-box;
+            user-select: none; border: none; background-color: transparent !important; /* Убираем рамку и фон */
         }
         #fb { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0); width: 160px; height: 160px; z-index: 1000; transition: 0.3s; pointer-events: none; }
         #win { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 2000; color: white; font-family: sans-serif; }
@@ -29,8 +29,7 @@
 
 <script>
     const params = new URLSearchParams(window.location.search);
-    const pColor = params.get('pcolor') || '#03dac6';
-    document.getElementById('p-bar').style.backgroundColor = pColor;
+    document.getElementById('p-bar').style.backgroundColor = params.get('pcolor') || '#03dac6';
 
     const fontName = params.get('font') || 'Arial';
     const effect = params.get('effect') || '';
@@ -43,10 +42,20 @@
     }
 
     const cImg = params.get('cimg'), lImg = params.get('lifeimg'), wImg = params.get('winimg'), loImg = params.get('loseimg');
+    
+    // Загрузка данных
     const pairsObj = JSON.parse(params.get('data') || '{}');
-    const pairs = Object.entries(pairsObj).map(([a, b], i) => ({a, b, id: i}));
+    const extraWords = (params.get('extra') || '').split(',').filter(w => w.trim() !== '');
+    
     let deck = [];
+    const pairs = Object.entries(pairsObj).map(([a, b], i) => ({a, b, id: i}));
+    
+    // Добавляем игровые пары
     pairs.forEach(p => { deck.push({t: p.a, id: p.id}); deck.push({t: p.b, id: p.id}); });
+    
+    // Добавляем лишние карточки (id = -1, чтобы они не имели пары)
+    extraWords.forEach(w => { deck.push({t: w.trim(), id: -1}); });
+    
     deck.sort(() => 0.5 - Math.random());
 
     let lives = 3, found = 0, selected = [], cards = [];
@@ -58,16 +67,15 @@
         el.className = `card ${effect}`;
         el.textContent = data.t;
         el.style.fontSize = params.get('fsize') || '20px';
-        el.style.backgroundColor = `rgba(255,255,255,${params.get('opac') || '0.4'})`;
         el.style.backgroundImage = `url('${cImg}')`;
         el.onclick = () => {
             if(selected.length < 2 && !el.dataset.done) {
-                el.style.boxShadow = "0 0 25px white";
+                el.style.filter = "brightness(1.5) drop-shadow(0 0 10px white)";
                 selected.push({el, id: data.id});
                 if(selected.length === 2) {
                     const [s1, s2] = selected;
                     const fb = document.getElementById('fb');
-                    if(s1.id === s2.id) {
+                    if(s1.id === s2.id && s1.id !== -1) {
                         fb.src = wImg; found++;
                         document.getElementById('p-bar').style.width = (found/pairs.length)*100 + '%';
                         selected.forEach(s => { s.el.style.display = 'none'; s.el.dataset.done = '1'; });
@@ -77,7 +85,7 @@
                         const icons = document.querySelectorAll('.life');
                         if(icons[lives]) icons[lives].style.opacity = '0.1';
                         if(lives <= 0) setTimeout(() => location.reload(), 1000);
-                        selected.forEach(s => s.el.style.boxShadow = "none");
+                        selected.forEach(s => s.el.style.filter = "none");
                     }
                     fb.style.transform = 'translate(-50%, -50%) scale(1.2)';
                     setTimeout(() => { fb.style.transform = 'translate(-50%, -50%) scale(0)'; }, 800);
