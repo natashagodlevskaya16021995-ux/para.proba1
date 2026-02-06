@@ -11,34 +11,48 @@
         #p-wrap { width: 200px; height: 10px; background: rgba(255,255,255,0.1); border-radius: 10px; overflow: hidden; }
         #p-bar { width: 0%; height: 100%; transition: 0.3s; }
         .card { 
-            position: absolute; 
-            background-size: contain; background-repeat: no-repeat; background-position: center;
+            position: absolute; background-size: contain; background-repeat: no-repeat; background-position: center;
             display: flex; align-items: center; justify-content: center; text-align: center; 
-            cursor: pointer; padding: 10px; box-sizing: border-box;
-            user-select: none; background-color: transparent !important; will-change: transform;
+            cursor: pointer; padding: 10px; box-sizing: border-box; user-select: none; will-change: transform;
         }
         #fb { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0); width: 160px; height: 160px; z-index: 1000; transition: 0.3s; pointer-events: none; }
         #win { position: fixed; inset: 0; background: rgba(0,0,0,0.85); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 2000; color: white; font-family: sans-serif; }
+        #error-msg { color: white; background: red; position: fixed; top:0; z-index:9999; display:none; padding:5px; font-size:10px; }
     </style>
 </head>
 <body>
+    <div id="error-msg">Ошибка данных. Проверьте ссылку.</div>
     <div id="ui"><div id="lives"></div><div id="p-wrap"><div id="p-bar"></div></div></div>
     <div id="game"></div><img id="fb">
     <div id="win"><h1>ПОБЕДА!</h1><button onclick="location.reload()" style="padding:10px 20px; cursor:pointer; border-radius:8px; border:none; background:#03dac6; font-weight:bold;">ЗАНОВО</button></div>
 
 <script>
     const params = new URLSearchParams(window.location.search);
-    const speed = parseFloat(params.get('speed')) || 2;
-    const data = JSON.parse(params.get('data') || '{}');
-    const extra = (params.get('extra') || '').split(',').map(s => s.trim()).filter(s => s);
-    const cSize = parseInt(params.get('csize')) || 140; // Размер карточки
     
-    // Настройка шрифта
-    const font = params.get('font') || 'Arial';
+    // Защищенное получение параметров
+    const getParam = (name, def) => {
+        let v = params.get(name);
+        return (v === null || v === 'null' || v === '') ? def : v;
+    };
+
+    const speed = parseFloat(getParam('speed', 2));
+    const cSize = parseInt(getParam('csize', 140));
+    const fColor = getParam('fcolor', '#ffffff');
+    const fSize = getParam('fsize', '25px');
+    const effect = getParam('effect', '');
+    
+    let rawData = params.get('data');
+    let data = {};
+    try { if(rawData) data = JSON.parse(rawData); } catch(e) { document.getElementById('error-msg').style.display='block'; }
+
+    const extra = getParam('extra', '').split(',').map(s => s.trim()).filter(s => s && s !== 'null');
+    
+    // Шрифт
+    const font = getParam('font', 'Arial');
     if (font !== 'Arial') {
         const link = document.createElement('link');
         link.rel = 'stylesheet';
-        link.href = `https://fonts.googleapis.com/css2?family=${font.replace(/ /g, '+')}${params.get('effect') ? '&effect='+params.get('effect') : ''}`;
+        link.href = `https://fonts.googleapis.com/css2?family=${font.replace(/ /g, '+')}${effect ? '&effect='+effect : ''}`;
         document.head.appendChild(link);
         document.body.style.fontFamily = `'${font}', sans-serif`;
     }
@@ -53,49 +67,54 @@
     deck.sort(() => Math.random() - 0.5);
 
     let lives = 3, found = 0, selected = [], cards = [];
-    document.getElementById('p-bar').style.backgroundColor = params.get('pcolor') || '#03dac6';
+    document.getElementById('p-bar').style.backgroundColor = getParam('pcolor', '#03dac6');
     const lDiv = document.getElementById('lives');
-    for(let i=0; i<3; i++) lDiv.innerHTML += `<div class="life" style="background-image:url('${params.get('lifeimg')}')"></div>`;
+    for(let i=0; i<3; i++) lDiv.innerHTML += `<div class="life" style="background-image:url('${getParam('lifeimg','')}')"></div>`;
 
-    deck.forEach(item => {
-        const el = document.createElement('div');
-        el.className = `card ${params.get('effect') || ''}`;
-        el.textContent = item.t;
-        el.style.width = cSize + 'px';
-        el.style.height = cSize + 'px';
-        el.style.backgroundImage = `url('${params.get('cimg')}')`;
-        el.style.fontSize = params.get('fsize') || '25px';
-        el.style.color = params.get('fcolor') || '#ffffff'; // Цвет текста
-        
-        el.onclick = () => {
-            if(selected.length < 2 && !el.dataset.done) {
-                el.style.filter = "brightness(1.5) drop-shadow(0 0 10px white)";
-                selected.push({el, id: item.id});
-                if(selected.length === 2) {
-                    const [s1, s2] = selected;
-                    const fb = document.getElementById('fb');
-                    if(s1.id === s2.id && s1.id !== -99) {
-                        fb.src = params.get('winimg'); found++;
-                        document.getElementById('p-bar').style.width = (found/pairEntries.length)*100 + '%';
-                        selected.forEach(s => { s.el.style.display = 'none'; s.el.dataset.done = '1'; });
-                        if(found === pairEntries.length) document.getElementById('win').style.display = 'flex';
-                    } else {
-                        fb.src = params.get('loseimg'); lives--;
-                        const icons = document.querySelectorAll('.life');
-                        if(icons[lives]) icons[lives].style.opacity = '0.1';
-                        if(lives <= 0) setTimeout(() => location.reload(), 1000);
-                        selected.forEach(s => s.el.style.filter = "none");
+    if (deck.length > 0) {
+        deck.forEach(item => {
+            const el = document.createElement('div');
+            el.className = `card ${effect}`;
+            el.textContent = item.t;
+            el.style.width = cSize + 'px';
+            el.style.height = cSize + 'px';
+            el.style.backgroundImage = `url('${getParam('cimg','')}')`;
+            el.style.fontSize = fSize;
+            el.style.color = fColor;
+            
+            el.onclick = () => {
+                if(selected.length < 2 && !el.dataset.done) {
+                    el.style.filter = "brightness(1.5) drop-shadow(0 0 10px white)";
+                    selected.push({el, id: item.id});
+                    if(selected.length === 2) {
+                        const [s1, s2] = selected;
+                        const fb = document.getElementById('fb');
+                        if(s1.id === s2.id && s1.id !== -99) {
+                            fb.src = getParam('winimg',''); found++;
+                            document.getElementById('p-bar').style.width = (found/pairEntries.length)*100 + '%';
+                            selected.forEach(s => { s.el.style.display = 'none'; s.el.dataset.done = '1'; });
+                            // ТУТ ИСПРАВЛЕНА ОШИБКА: победа только если пары БЫЛИ
+                            if(pairEntries.length > 0 && found === pairEntries.length) {
+                                document.getElementById('win').style.display = 'flex';
+                            }
+                        } else {
+                            fb.src = getParam('loseimg',''); lives--;
+                            const icons = document.querySelectorAll('.life');
+                            if(icons[lives]) icons[lives].style.opacity = '0.1';
+                            if(lives <= 0) setTimeout(() => location.reload(), 1000);
+                            selected.forEach(s => s.el.style.filter = "none");
+                        }
+                        fb.style.transform = 'translate(-50%, -50%) scale(1.1)';
+                        setTimeout(() => fb.style.transform = 'translate(-50%, -50%) scale(0)', 700);
+                        selected = [];
                     }
-                    fb.style.transform = 'translate(-50%, -50%) scale(1.1)';
-                    setTimeout(() => fb.style.transform = 'translate(-50%, -50%) scale(0)', 700);
-                    selected = [];
                 }
-            }
-        };
-        const cObj = { el, x: Math.random()*(window.innerWidth-cSize), y: Math.random()*(window.innerHeight-cSize), vx: (Math.random()-0.5)*speed, vy: (Math.random()-0.5)*speed };
-        document.getElementById('game').appendChild(el);
-        cards.push(cObj);
-    });
+            };
+            const cObj = { el, x: Math.random()*(window.innerWidth-cSize), y: Math.random()*(window.innerHeight-cSize), vx: (Math.random()-0.5)*speed, vy: (Math.random()-0.5)*speed };
+            document.getElementById('game').appendChild(el);
+            cards.push(cObj);
+        });
+    }
 
     function loop() {
         cards.forEach(c => {
